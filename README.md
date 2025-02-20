@@ -4,7 +4,7 @@ A lightweight Python script to change the power plan in Windows after a predeter
 
 ---
 
-This Python script is able to detect both user input, and whether or not any audio is playing on the system, and will change the Windows power plan from balanced to power saving once there has been a predetermined period of user inactivity and no audio currently playing. This combination ensures the script will not enable idle mode if user input is detected or any audio is detected e.g. watching a video, playing a game, etc. 
+This Python script is able to detect both user input, and whether or not any audio is playing on the system, and will change the Windows power plan from balanced to power saving once there has been a predetermined period of user inactivity and no audio currently playing. This combination ensures the script will not enable idle mode if user input is detected or if there is an audio source e.g. watching a video, playing a game, Spotify etc. 
 # Requirements
 Windows (tested on 10 22H2)
 Python 3 (tested with 3.12)
