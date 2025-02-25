@@ -1,21 +1,27 @@
 import argparse
-import time
-import powerplan
-import win32api
 import logging
+import os
+import powerplan
+import sys
+import time
+import win32api
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
 
 def setup_logger(logging_level):
+    # Obtain working directory
+    working_dir = os.path.dirname(os.path.realpath(__file__))
+    log_file = os.path.join(
+        working_dir,
+        f"{datetime.now().strftime('%Y-%m-%d')} IdlePowerplan.log"
+    )
     # Define logger
     logger = logging.getLogger(__name__)  
     # Set logging level from provided arg
     logger.setLevel(logging_level)
-    # Remove previous log
-    log_handler = RotatingFileHandler(
-        f"{datetime.now().strftime('%Y-%m-%d')} IdlePowerplan.log", backupCount = 5
-    )
+    # Remove old logs
+    log_handler = RotatingFileHandler(log_file, backupCount = 5)
     # Define format
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt = "%H:%M:%S")
     # Set format and handler
@@ -60,13 +66,25 @@ def args():
     check_frequency = args.check_frequency
     idle_target = args.idle_target
     logging_level = args.debug
-    
+        
     if logging_level == 1:
         logging_level = logging.INFO
     else:
         logging_level = logging.ERROR
     
     return check_frequency, logging_level, idle_target
+
+def fool_check(logger, idle_target, check_frequency):
+    # Check inputs are valid
+    try:
+        idle_target = int(idle_target)
+        check_frequency = int (check_frequency)
+        if idle_target <= 0 or check_frequency <= 0:
+            logger.error("Idle target and/or check frequency must be greater than 0!")
+            sys.exit(1)
+    except ValueError:
+        logger.error("Inputs must be an int!!!")
+        sys.exit(1)
 
 def last_input(logger):
     # Returns an int that increases whenever user input is detected
@@ -110,8 +128,8 @@ def idle_increment(logger, c_input, idle_seconds, check_frequency):
     # If match then no new user input has been detected
     if c_input == l_input:
         # Returns incremented value and new c_input value
-        return (idle_seconds + check_frequency), l_input
         logger.info("idle time increase")
+        return (idle_seconds + check_frequency), l_input
     else:
         # idle_seconds is reset to 0 and new c_input is returned
         logger.info("reset idle time from function")
@@ -122,6 +140,7 @@ def main():
     chosen_check_frequency = check_frequency
     logger = setup_logger(logging_level)
     logger.info(f"check_frequency: {check_frequency}, logging_level: {logging_level}, idle_target: {idle_target}")
+    fool_check(logger, idle_target, check_frequency)
     idle_seconds = 0 # Idle duration in seconds
     is_power_saving = False # True for power saving, true for balance
     c_input = last_input(logger) # Stores a number that increments with each user interaction
@@ -132,7 +151,7 @@ def main():
         idle_seconds, c_input = idle_increment(logger, c_input, idle_seconds, check_frequency)
         # Enable power saving plan if all conditions are met
         if idle_seconds >= idle_target and not is_power_saving:
-            logger.info("idle_seconds greater than idle_target")
+            logger.info(f"idle_seconds: {idle_seconds} greater than idle_target: {idle_target}")
             # To reduce overhead the audio detection function is only called when the 
             # idle_target has been met
             if is_audio_playing(logger):
@@ -141,7 +160,7 @@ def main():
                 idle_seconds = 0
             # Power saving plan enabled
             else:
-                logger.info("Now audio playing")
+                logger.info("No audio playing")
                 logger.info("power saving enabled, increasing check frequency")
                 is_power_saving = power_plan_change(logger, is_power_saving)
                 check_frequency = 1 # Increase check frequency for snappier response
@@ -150,6 +169,8 @@ def main():
             logger.info("disabling power saving and reducing check frequency")
             is_power_saving = power_plan_change(logger, is_power_saving) 
             check_frequency = chosen_check_frequency # Lower check_frequency = less system overhead
+        else:
+            logger.info(f"Continue idle | idle_seconds: {idle_seconds} | idle_target: {idle_target}")
         logger.info(f"System idle for {idle_seconds} seconds")
         logger.info(f"Is sytem power saving? {is_power_saving}")
         time.sleep(check_frequency)
